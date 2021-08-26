@@ -250,8 +250,6 @@ class Trainer(object):
             train_iter: _data_type = None,
             val_iter: _data_type = None,
             test_iter: _data_type = None,
-            unsupervised: bool = False,
-            eval_accuracy: typing.Optional[bool] = None,
             step_task: _step_func_type = None,
             snapshot_dir: _path_type = None,
             verbose: bool = True,
@@ -291,15 +289,13 @@ class Trainer(object):
                 "Invalid criterion string: %s" % criterion
             criterion = getattr(torch.nn.functional, criterion, getattr(torch.nn, criterion)())
 
-        self.model: _model_type = (model)
+        self.model: _model_type = model
         self.criterion: _loss_type = criterion
         self.optimizer: _optim_type = MultipleOptimizerHandler(optimizer)
         self.total_epoch: int = epoch
         self.train_iter: _data_type = train_iter
         self.val_iter: _data_type = val_iter
         self.test_iter: _data_type = test_iter
-        self.unsupervised: bool = unsupervised
-        self.eval_accuracy: bool = eval_accuracy if eval_accuracy is not None else not unsupervised
         self.step_task: _step_func_type = step_task
         self.step_task_mode: typing.Optional[int] = step_task_mode
         self.snapshot_dir: _path_type = snapshot_dir
@@ -376,28 +372,28 @@ class Trainer(object):
     # Running Methods
     #
 
-    def train(self) -> typing.Tuple[float, float]:
+    def train(self) -> typing.Sequence[float]:
 
         result = self._train()
         self._current_epoch += 1
         return result
 
-    def evaluate(self) -> typing.Tuple[float, float]:
+    def evaluate(self) -> typing.Sequence[float]:
 
         return self._evaluate(test=False)
 
-    def test(self) -> typing.Tuple[float, float]:
+    def test(self) -> typing.Sequence[float]:
 
         return self._evaluate(test=True)
 
-    def step(self) -> typing.Tuple[float, float, typing.Optional[float], typing.Optional[float]]:
+    def step(self) -> typing.Sequence[float]:
 
         self._log_step(self._current_epoch + 1)
 
-        train_loss, train_accuracy = self._train()
+        train_args = self._train()
 
         if self.val_iter:
-            test_loss, test_accuracy = self._evaluate(test=False)
+            test_loss, *test_args = self._evaluate(test=False)
 
             # Save the model having the smallest validation loss
             if test_loss < self._best_loss:
@@ -405,15 +401,15 @@ class Trainer(object):
                 self._save()
 
         else:
-            test_loss = test_accuracy = None
+            test_loss, test_args = None, ()
 
         self._current_epoch += 1
 
         self._do_step_task()
 
-        return train_loss, train_accuracy, test_loss, test_accuracy
+        return tuple((*train_args, test_loss, *test_args))
 
-    def run(self) -> typing.List[typing.Tuple[float, float, typing.Optional[float], typing.Optional[float]]]:
+    def run(self) -> typing.List[typing.Sequence[float]]:
 
         with self._with_context():
 
@@ -632,15 +628,13 @@ class Trainer(object):
 
     # Internal Running Methods
 
-    def _train(self) -> typing.Tuple[float, float]:
+    def _train(self) -> typing.Sequence[float]:
 
         self._require_context()
 
         data = self.train_iter
         total_loss, total_accuracy = 0., 0.
         total_batch = len(data)
-        unsupervised = self.unsupervised
-        eval_accuracy = self.eval_accuracy
         verbose = self.verbose
         log_interval = self.log_interval
 
@@ -670,14 +664,12 @@ class Trainer(object):
         return avg_loss, avg_accuracy
 
     @torch.no_grad()
-    def _evaluate(self, *, test: typing.Optional[bool] = False) -> typing.Tuple[float, float]:
+    def _evaluate(self, *, test: typing.Optional[bool] = False) -> typing.Sequence[float]:
 
         data = self.test_iter if test else self.val_iter
         assert data is not None, "You must provide dataset for evaluating method."
         total_loss, total_accuracy = 0., 0.
         total_batch = len(data)
-        unsupervised = self.unsupervised
-        eval_accuracy = self.eval_accuracy
 
         self.model.eval()
 
