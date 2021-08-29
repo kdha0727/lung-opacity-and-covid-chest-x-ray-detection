@@ -98,7 +98,7 @@ def dataset_info(train: _data_type = None, val: _data_type = None, test: _data_t
 
 class MultipleObjectHandlerBase(collections.OrderedDict):
 
-    def __init__(self, other=(), baseclass=None, /, **kw):
+    def __init__(self, other=(), baseclass=None, **kw):
         super(MultipleObjectHandlerBase, self).__init__()
         if isinstance(other, collections.Mapping):
             if baseclass is not None:
@@ -159,12 +159,12 @@ class MultipleOptimizerHandler(MultipleObjectHandlerBase):
     @typing.overload
     def __new__(cls: _t, other: typing.Iterable = ...) -> _t: ...
 
-    def __new__(cls, other=(), /, **kw):
+    def __new__(cls, other=(), **kw):
         if isinstance(other, torch.optim.Optimizer):
             return other
         return super(MultipleOptimizerHandler, cls).__new__(cls)
 
-    def __init__(self, other=(), /, **kw):
+    def __init__(self, other=(), **kw):
         super(MultipleOptimizerHandler, self).__init__(other, torch.optim.Optimizer, **kw)
 
     def __repr__(self):
