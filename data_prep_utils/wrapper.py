@@ -97,7 +97,7 @@ class RSNAPneumoniaDetectionChallenge(DataWrapper):
     def torch_classification_dataset(self, transform=transforms.ToTensor()):
         return dataset.ImageWithPandas(
             dataframe=self.classification_csv,
-            label_path='patientId',
+            label_id='patientId',
             label_target='Target',
             root=self.image_path,
             extension='.dcm',
@@ -106,8 +106,18 @@ class RSNAPneumoniaDetectionChallenge(DataWrapper):
             class_to_idx=self.class_to_idx,
         )
 
-    def torch_detection_dataset(self, transform):
-        raise NotImplementedError
+    def torch_detection_dataset(self, transforms):
+        return dataset.ImageBboxWithPandas(
+            dataframe=self.full_csv,
+            label_id='patientId',
+            label_bbox="x y width height".split(),
+            label_target='Target',
+            root=self.image_path,
+            extension='.dcm',
+            transforms=transforms,
+            loader=dataset.dicom_loader,
+            class_to_idx=self.class_to_idx,
+        )
 
 
 class COVID19RadiologyDataset(DataWrapper):

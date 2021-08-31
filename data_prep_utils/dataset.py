@@ -3,6 +3,8 @@ import pandas as pd
 import pydicom
 import os
 import typing
+
+import torch
 from PIL import Image
 from torchvision.datasets import VisionDataset, ImageFolder as _ImageFolder
 
@@ -19,10 +21,13 @@ def pil_loader(path: str) -> Image.Image:
 
 
 def dicom_loader(path: str) -> Image.Image:
-    with open(path, 'rb') as f:
-        dcm = pydicom.dcmread(f)
-        arr = dcm.pixel_array
-        return Image.fromarray(arr)
+    try:
+        with open(path, 'rb') as f:
+            dcm = pydicom.dcmread(f)
+            arr = dcm.pixel_array
+            return Image.fromarray(arr)
+    except Exception:
+        raise Exception(path)
 
 
 def default_loader(path: str):
@@ -40,7 +45,7 @@ class ImageWithPandas(VisionDataset):
     Args:
         dataframe (pandas.DataFrame): A data table that contains image path, target class,
             and extra outputs.
-        label_path (string): Data frame`s image path label string.
+        label_id (string): Data frame`s image path label string.
         label_target (string): Data frame`s target class label string.
         label_extras (tuple[string] or string, optional): Data frame`s label that will
             be used for extra outputs.
@@ -68,9 +73,8 @@ class ImageWithPandas(VisionDataset):
     def __init__(
             self,
             dataframe: pd.DataFrame,
-            label_path: str,
+            label_id: str,
             label_target: str,
-            label_extras: typing.Optional[typing.Union[typing.Iterable[str], str]] = None,
             root: typing.Optional[typing.Union[str, os.PathLike]] = None,
             extension: typing.Optional[str] = None,
             class_to_idx: typing.Optional[typing.Dict[typing.Any, int]] = None,
@@ -84,18 +88,10 @@ class ImageWithPandas(VisionDataset):
 
         self.extras_transform = extras_transform
         self.loader = loader
-        self.label_path = label_path
+        self.label_id = label_id
         self.label_target = label_target
 
-        labels = [label_path, label_target]
-        if isinstance(label_extras, str):
-            labels.append(label_extras)
-            label_extras = [label_extras]
-        elif label_extras is not None:
-            label_extras = list(label_extras)
-            labels.extend(label_extras)
-
-        self.label_extras = label_extras
+        labels = [label_id, label_target]
 
         samples = dataframe[labels].copy(deep=True)
 
@@ -103,7 +99,7 @@ class ImageWithPandas(VisionDataset):
         if root is not None:
             root = os.path.expanduser(root)
         if root is not None or extension is not None:
-            samples[label_path] = samples[label_path].map(
+            samples[label_id] = samples[label_id].map(
                 (lambda x: os.path.join(root, x + extension or ''))
                 if root is not None else (lambda x: x + extension)
             )
@@ -112,32 +108,124 @@ class ImageWithPandas(VisionDataset):
         if class_to_idx is None:
             class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
         samples[label_target] = samples[label_target].map(lambda x: class_to_idx[x])
+
         samples = samples.drop_duplicates()
 
+        self.ids = tuple(samples[label_id].drop_duplicates())
         self.samples = samples
         self.classes = classes
         self.class_to_idx = class_to_idx
         self.num_classes = len(class_to_idx)
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.ids)
 
     def __getitem__(self, index: int) -> ...:
-        row = self.samples.iloc[index]
-        path, target = row[self.label_path], row[self.label_target]
-        sample = self.loader(path)
+        image_id = self.ids[index]
+        row = self.samples[self.samples[self.label_id] == image_id]
+        path, target = row[self.label_id], row[self.label_target]
+        sample = self.loader(path.item())
         if self.transform is not None:
             sample = self.transform(sample)
         if self.target_transform is not None:
             target = self.target_transform(target)
-        if self.label_extras:
-            if self.extras_transform is not None:
-                extra = map(self.extras_transform, row[self.label_extras].values)
-            else:
-                extra = iter(row[self.label_extras].values)
         else:
-            extra = ()
-        return tuple((sample, target, *extra))
+            target = np.array(target)
+        return sample, target
+
+
+class ImageBboxWithPandas(VisionDataset):
+    """A generic data loader where the image path and label is given as pandas DataFrame.
+
+    Args:
+        dataframe (pandas.DataFrame): A data table that contains image path, target class,
+            and extra outputs.
+        label_id (string): Data frame`s image path label string.
+        label_target (string): Data frame`s target class label string.
+        label_bbox (tuple[string] or string, optional): Data frame`s label that will
+            be used for bbox outputs.
+        root (string, optional): Root directory path. Use unless data frame`s column
+            contains file folders.
+        extension (string, optional): An extension that will be concatenated after
+            image file name. Use unless data frame`s column contains extension.
+        class_to_idx (dict[str, int], optional): A mapping table that converts class
+            label string into integer value. If not given, sorted index value will
+            be used as class integer value.
+        transforms (callable, optional): Albumentation transform
+        loader (callable, optional): A function to load an image given its path.
+
+     Attributes:
+        class_to_idx (dict): Dict with items (class_name, class_index).
+        samples (list): List of (sample path, class_index) tuples
+    """
+
+    def __init__(
+            self,
+            dataframe: pd.DataFrame,
+            label_id: str,
+            label_target: str,
+            label_bbox: typing.Sequence[str],
+            root: typing.Optional[typing.Union[str, os.PathLike]] = None,
+            extension: typing.Optional[str] = None,
+            class_to_idx: typing.Optional[typing.Dict[typing.Any, int]] = None,
+            transforms: typing.Optional[typing.Callable] = None,
+            loader: typing.Callable[[str], typing.Any] = default_loader,
+    ) -> None:
+
+        super(ImageBboxWithPandas, self).__init__(root, transforms)
+
+        self.loader = loader
+        self.label_id = label_id
+        self.label_target = label_target
+        self.label_bbox = list(label_bbox)
+        assert len(self.label_bbox) == 4
+
+        samples = dataframe.copy(deep=True)
+
+        assert extension.startswith('.') or extension is None
+        if root is not None:
+            root = os.path.expanduser(root)
+        if root is not None or extension is not None:
+            samples[label_id] = samples[label_id].map(
+                (lambda x: os.path.join(root, x + extension or ''))
+                if root is not None else (lambda x: x + extension)
+            )
+
+        classes = sorted(samples[label_target].unique())
+        if class_to_idx is None:
+            class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
+        samples[label_target] = samples[label_target].map(lambda x: class_to_idx[x])
+
+        self.ids = samples[label_id].drop_duplicates()
+
+        self.samples = samples
+        self.class_to_idx = class_to_idx
+        self.num_classes = len(class_to_idx)
+
+    def __len__(self):
+        return self.ids.shape[0]
+
+    def __getitem__(self, index: int) -> ...:
+        image_id = self.ids[index]
+        rows = self.samples[self.samples[self.label_id] == image_id]
+        path
+
+        image = self.loader(image_id)
+
+        labels = torch.tensor(list(rows[self.label_target]), dtype=torch.int)
+
+        boxes = rows[self.label_bbox].values  # x y w h
+        boxes[:, 2] = boxes[:, 0] + boxes[:, 2]
+        boxes[:, 3] = boxes[:, 1] + boxes[:, 3]
+
+        sample = {'image': image, 'bboxes': boxes, 'labels': labels}
+
+        if self.transforms:
+            sample = self.transforms(**sample)
+            if len(sample['bboxes']) > 0:
+                sample['boxes'][:, [0, 1, 2, 3]] = sample['boxes'][:, [1, 0, 3, 2]]  # yxyx: be warning
+
+        return image, sample
 
 
 class ImageFolder(_ImageFolder):

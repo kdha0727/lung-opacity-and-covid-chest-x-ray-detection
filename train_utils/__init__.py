@@ -1,7 +1,4 @@
-"""
-One-time Pytorch Trainer Utility and Useful Functions:
-    written by Dong Ha Kim, in Yonsei University.
-"""
+"""Even with: https://github.com/kdha0727/easyrun-pytorch/blob/main/easyrun.py"""
 
 # Frameworks and Internal Modules
 
@@ -12,7 +9,9 @@ import contextlib
 import inspect
 import math
 import reprlib
+import pathlib
 import time
+import glob
 
 import torch
 import torch.nn.functional
@@ -76,7 +75,7 @@ def runtime_info(device: typing.Union[torch.device, str] = None) -> str:
     return (
         f"<Runtime Information>\n"
         f"OS version: \t\t{platform.platform()}\n"
-        f"Python version:\t\t{sys.version[0x20]}\n"
+        f"Python version:\t\t{sys.version}\n"
         f"Torch version:\t\t{torch.__version__}\n"
         f"Torch device:\t\t{device or ('cuda' if torch.cuda.is_available() else 'cpu')}"
     )
@@ -241,7 +240,24 @@ class Trainer(object):
 
     __initialized: bool = False
 
-    def __init__(
+    def __init__(self, *args, **kwargs) -> None:
+
+        if args or kwargs:
+            self.__real_init(*args, **kwargs)
+
+        self._closed: bool = False
+        self._current_epoch: int = 0
+        self._best_loss: float = math.inf
+        self._time_start: typing.Optional[float] = None
+        self._time_stop: typing.Optional[float] = None
+        self._processing_fn: _path_type = None
+        self._current_run_result: typing.Optional[typing.List] = None
+
+        self.__to_parse: _to_parse_type = (None, None, False, None)
+
+        self.__initialized = True
+
+    def __real_init(
             self,
             model: _model_type,
             criterion: _loss_type,
@@ -258,7 +274,7 @@ class Trainer(object):
     ) -> None:
 
         _dataset_type = (torch.utils.data.Dataset, torch.utils.data.DataLoader)
-        assert isinstance(train_iter, _dataset_type), \
+        assert train_iter is None or isinstance(train_iter, _dataset_type), \
             "Invalid train_iter type: %s" % train_iter.__class__.__name__
         assert val_iter is None or isinstance(val_iter, _dataset_type), \
             "Invalid val_iter type: %s" % val_iter.__class__.__name__
@@ -298,7 +314,7 @@ class Trainer(object):
         self.test_iter: _data_type = test_iter
         self.step_task: _step_func_type = step_task
         self.step_task_mode: typing.Optional[int] = step_task_mode
-        self.snapshot_dir: _path_type = snapshot_dir
+        self.snapshot_dir: pathlib.Path = pathlib.Path(snapshot_dir).resolve()
         self.verbose: bool = verbose
         self.use_timer: bool = timer
         self.log_interval: int = log_interval
@@ -306,18 +322,6 @@ class Trainer(object):
         self.train_loader_length: int = len(train_iter)
         self.train_dataset_length: int = len(getattr(train_iter, 'dataset', train_iter))
         self.save_and_load: bool = bool(snapshot_dir is not None and val_iter is not None)
-
-        self._closed: bool = False
-        self._current_epoch: int = 0
-        self._best_loss: float = math.inf
-        self._time_start: typing.Optional[float] = None
-        self._time_stop: typing.Optional[float] = None
-        self._processing_fn: _path_type = None
-        self._current_run_result: typing.Optional[typing.List] = None
-
-        self.__to_parse: _to_parse_type = (None, None, False, None)
-
-        self.__initialized = True
 
     #
     # De-constructor: executed in buffer-cleaning in python exit
@@ -391,6 +395,7 @@ class Trainer(object):
         self._log_step(self._current_epoch + 1)
 
         train_args = self._train()
+        self._save()
 
         if self.val_iter:
             test_loss, *test_args = self._evaluate(test=False)
@@ -398,7 +403,9 @@ class Trainer(object):
             # Save the model having the smallest validation loss
             if test_loss < self._best_loss:
                 self._best_loss = test_loss
-                self._save()
+                self._save(self.snapshot_dir / f'best_checkpoint_epoch_{str(self._current_epoch + 1).zfill(3)}.pt')
+                for path in sorted(glob.glob(self.snapshot_dir / 'best-checkpoint-*epoch.bin'))[:-3]:
+                    os.remove(path)
 
         else:
             test_loss, test_args = None, ()
@@ -439,6 +446,7 @@ class Trainer(object):
     def state_dict(self) -> collections.OrderedDict:
 
         state_dict = collections.OrderedDict()
+        state_dict['epoch'] = self._current_epoch
         state_dict['best_loss'] = self._best_loss
         state_dict['model'] = self.model.state_dict()
         state_dict['optimizer'] = self.optimizer.state_dict()
@@ -448,6 +456,7 @@ class Trainer(object):
 
     def load_state_dict(self, state_dict: collections.OrderedDict) -> None:
 
+        self._current_epoch = state_dict['epoch']
         self._best_loss = state_dict['best_loss']
         self.model.load_state_dict(state_dict['model'])
         self.optimizer.load_state_dict(state_dict['optimizer'])
@@ -519,17 +528,25 @@ class Trainer(object):
         if self.verbose:
             self.log_function(f'\nEpoch {epoch}')
 
-    def _log_train_doing(self, loss: float, iteration: int) -> None:
+    def _log_train_doing(self, loss: float, iteration: int, whole: int = None) -> None:
 
         if self.verbose:
-            self.log_function(
-                f'\r[Train]\t '
-                f'Progress: {iteration * self.train_batch_size}/{self.train_dataset_length} '
-                f'({100. * iteration / self.train_loader_length:05.2f}%), \tLoss: {loss:.6f}',
-                end=' '
-            )
+            if whole is not None:
+                self.log_function(
+                    f'\r[Train]\t '
+                    f'Progress: {iteration}/{whole} '
+                    f'({100. * iteration / whole:05.2f}%), \tLoss: {loss:.6f}',
+                    end=' '
+                )
+            else:
+                self.log_function(
+                    f'\r[Train]\t '
+                    f'Progress: {iteration * self.train_batch_size}/{self.train_dataset_length} '
+                    f'({100. * iteration / self.train_loader_length:05.2f}%), \tLoss: {loss:.6f}',
+                    end=' '
+                )
 
-    def _log_train_done(self, loss: float, accuracy: typing.Optional[float]) -> None:
+    def _log_train_done(self, loss: float, accuracy: typing.Optional[float] = None) -> None:
 
         if self.verbose:
             log = '\r[Train]\t '
@@ -541,7 +558,7 @@ class Trainer(object):
             # f'\tTotal accuracy: {100. * accuracy:.2f}%'
             self.log_function(log)
 
-    def _log_eval(self, loss: float, accuracy: typing.Optional[float], test: typing.Optional[bool] = False) -> None:
+    def _log_eval(self, loss: float, accuracy: typing.Optional[float] = None, test: typing.Optional[bool] = False) -> None:
 
         if self.verbose:
             log = '\n[Test]\t ' if test else '[Eval]\t '
@@ -567,19 +584,19 @@ class Trainer(object):
 
     # Internal Parameter Methods
 
-    def _load(self) -> None:
+    def _load(self, fn=None) -> None:
 
         self._require_context()
 
         if self.save_and_load:
-            self.load_state_dict(torch.load(self._processing_fn))
+            self.load_state_dict(torch.load(str(fn) or self._processing_fn))
 
-    def _save(self) -> None:
+    def _save(self, fn=None) -> None:
 
         self._require_context()
 
         if self.save_and_load:
-            torch.save(self.state_dict(), self._processing_fn)
+            torch.save(self.state_dict(), str(fn) or self._processing_fn)
 
     # Internal Context Methods
 
@@ -589,8 +606,8 @@ class Trainer(object):
 
         if prev:
             if self.save_and_load:
-                self._processing_fn = os.path.join(self.snapshot_dir, f'_processing_{id(self)}.pt')
-                os.makedirs(self.snapshot_dir, exist_ok=True)
+                self._processing_fn = str(self.snapshot_dir / f'_processing_{id(self)}.pt')
+                self.snapshot_dir.mkdir(exist_ok=True)
 
         self._closed = False
 
@@ -604,7 +621,8 @@ class Trainer(object):
         if prev:
             if self.save_and_load:
                 try:
-                    os.remove(self._processing_fn)
+                    if self._processing_fn is not None:
+                        os.remove(self._processing_fn)
                 except FileNotFoundError:
                     pass
                 self._processing_fn = None
