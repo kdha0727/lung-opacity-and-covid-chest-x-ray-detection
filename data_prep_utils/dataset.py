@@ -208,7 +208,6 @@ class ImageBboxWithPandas(VisionDataset):
     def __getitem__(self, index: int) -> ...:
         image_id = self.ids[index]
         rows = self.samples[self.samples[self.label_id] == image_id]
-        path
 
         image = self.loader(image_id)
 
