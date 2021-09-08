@@ -107,7 +107,7 @@ class RSNAPneumoniaDetectionChallenge(DataWrapper):
         )
 
     def torch_detection_dataset(self, transforms, **loader_kwargs):
-        df = self.full_csv[self.full_csv.Target == 1].iloc[:10]
+        df = self.full_csv[self.full_csv.Target == 1]
         label_id = 'patientId'
         common_kwargs = dict(
             label_bbox="x y width height".split(),

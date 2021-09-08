@@ -3,7 +3,7 @@ from efficientnet_pytorch.utils import GlobalParams
 # from efficientnet_pytorch.utils import get_model_params
 
 
-def get_efficientnet(depth=4, in_channels=3, image_size=None, pretrained=True, **override_params):
+def get_efficientnet_backbone(depth=4, in_channels=3, image_size=None, pretrained=True, **override_params):
 
     assert 0 <= depth <= 8
     if image_size is not None:
@@ -29,7 +29,6 @@ def get_efficientnet(depth=4, in_channels=3, image_size=None, pretrained=True, *
         del net._dropout, net._fc
     else:
         net = EfficientNet.from_name(model_name, include_top=False, **override_params)
-        if in_channels != 3:
-            net._change_in_channels(3)
+        net._change_in_channels(in_channels)
     net.out_channels = net._bn1.num_features
     return net

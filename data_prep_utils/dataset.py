@@ -120,21 +120,23 @@ class ImageWithPandas(VisionDataset):
         samples[label_target] = samples[label_target].map(lambda x: class_to_idx[x])
 
         samples = samples.drop_duplicates()
+        samples.index = range(len(samples))
 
-        self.ids = tuple(samples[label_id].drop_duplicates())
         self.samples = samples
         self.classes = classes
         self.class_to_idx = class_to_idx
         self.num_classes = len(class_to_idx)
 
+    def get_labels(self):
+        return list(self.samples[self.label_target])
+
     def __len__(self):
-        return len(self.ids)
+        return len(self.samples)
 
     def __getitem__(self, index: int) -> ...:
-        image_id = self.ids[index]
-        row = self.samples[self.samples[self.label_id] == image_id]
+        row = self.samples.iloc[index]
         path, target = row[self.label_id], row[self.label_target]
-        sample = self.loader(path.item())
+        sample = self.loader(path)
         if self.transform is not None:
             sample = self.transform(sample)
         if self.target_transform is not None:
