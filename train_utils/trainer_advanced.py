@@ -24,12 +24,12 @@ class AdvancedFitter(Trainer):
             model,
             optimizer,
             epoch: int,
-            train_iter = None,
-            val_iter = None,
-            test_iter = None,
-            snapshot_dir = None,
-            verbose: bool = True,
-            timer: bool = False,
+            train_iter=None,
+            val_iter=None,
+            test_iter=None,
+            snapshot_dir=None,
+            verbose: bool=True,
+            timer: bool=False,
             log_interval = 20,
     ) -> None:
 
@@ -42,22 +42,24 @@ class AdvancedFitter(Trainer):
         self.optimizer = optimizer
         self.total_epoch: int = epoch
         self.snapshot_dir: pathlib.Path = pathlib.Path(snapshot_dir).resolve()
+        self.save_and_load = bool(snapshot_dir is not None and val_iter is not None)
         self.verbose: bool = verbose
         self.use_timer: bool = timer
         self.log_interval: int = log_interval
         self.save_and_load: bool = bool(snapshot_dir is not None and val_iter is not None)
 
-        # FIXME
+        self.step_task = None
+        self.step_task_mode = None
+
         super().__init__()
 
-        # Do not set attribute of instance.
+        # Do not set attribute of instance after super().__init__()
         print("Advanced Fitter Initialized.")
 
     __setattr__ = object.__setattr__
     __delattr__ = object.__delattr__
 
     def _train(self):
-
         self._require_context()
 
         self.model.train()
@@ -90,12 +92,12 @@ class AdvancedFitter(Trainer):
                     if iteration % log_interval == 0 and verbose:
                         self._log_train_doing(l, iteration, whole)
 
-        avg_loss = total_loss / total_batch
-        avg_accuracy = total_accuracy / total_batch
+        avg_loss = total_loss / total_batch if total_batch else -1
+        avg_accuracy = total_accuracy / total_batch if total_batch else -1
 
         self._log_train_done(avg_loss, avg_accuracy)
 
-        det_avg_loss = det_loss / det_batch
+        det_avg_loss = det_loss / det_batch if det_batch else -1
 
         self._log_train_done(det_avg_loss)
 

@@ -1,6 +1,7 @@
 """Even with: https://github.com/kdha0727/easyrun-pytorch/blob/main/easyrun.py"""
 
 import os
+import sys
 
 import collections
 import contextlib
@@ -209,6 +210,23 @@ class Trainer(object):
     # Constructor
     #
 
+    model: _model_type = None
+    criterion: _loss_type = None
+    optimizer: _optim_type = None
+    total_epoch: int = None
+    train_iter: _data_type = None
+    val_iter: _data_type = None
+    test_iter: _data_type = None
+    step_task: _step_func_type = None
+    step_task_mode: typing.Optional[int] = None
+    snapshot_dir: pathlib.Path = None
+    verbose: bool = None
+    use_timer: bool = None
+    log_interval: int = None
+    train_batch_size: int = None
+    train_loader_length: int = None
+    train_dataset_length: int = None
+    save_and_load: bool = None
     __initialized: bool = False
 
     def __init__(self, *args, **kwargs) -> None:
@@ -216,7 +234,7 @@ class Trainer(object):
         if args or kwargs:
             self.__real_init(*args, **kwargs)
 
-        self._closed: bool = False
+        self._closed: bool = True
         self._current_epoch: int = 0
         self._best_loss: float = math.inf
         self._time_start: typing.Optional[float] = None
@@ -374,8 +392,8 @@ class Trainer(object):
             # Save the model having the smallest validation loss
             if test_loss < self._best_loss:
                 self._best_loss = test_loss
-                self._save(self.snapshot_dir / f'best_checkpoint_epoch_{str(self._current_epoch + 1).zfill(3)}.pt')
-                for path in sorted(glob.glob(self.snapshot_dir / 'best-checkpoint-*epoch.bin'))[:-3]:
+                self._save(str(self.snapshot_dir / f'best_checkpoint_epoch_{str(self._current_epoch + 1).zfill(3)}.pt'))
+                for path in sorted(glob.glob(str(self.snapshot_dir / 'best_checkpoint_epoch_*.pt')))[:-3]:
                     os.remove(path)
 
         else:
@@ -558,16 +576,18 @@ class Trainer(object):
     def _load(self, fn=None) -> None:
 
         self._require_context()
+        fn = str(fn or self._processing_fn)
 
         if self.save_and_load:
-            self.load_state_dict(torch.load(str(fn) or self._processing_fn))
+            self.load_state_dict(torch.load(fn))
 
     def _save(self, fn=None) -> None:
 
         self._require_context()
+        fn = str(fn or self._processing_fn)
 
         if self.save_and_load:
-            torch.save(self.state_dict(), str(fn) or self._processing_fn)
+            torch.save(self.state_dict(), fn)
 
     # Internal Context Methods
 
@@ -590,7 +610,7 @@ class Trainer(object):
             return
 
         if prev:
-            if self.save_and_load:
+            if self.save_and_load and not any(sys.exc_info()):  # Clearly handled without exception
                 try:
                     if self._processing_fn is not None:
                         os.remove(self._processing_fn)

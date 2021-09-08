@@ -328,8 +328,8 @@ class ImageFolder(_ImageFolder):
 
 class DataLoaderChain(IterableDataset):
 
-    __loaders: tuple
-    __length: int
+    __loaders: tuple = ()
+    __length: int = 0
 
     def __init__(self, *loaders):
         self.loaders = loaders
