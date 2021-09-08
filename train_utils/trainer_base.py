@@ -421,6 +421,8 @@ class Trainer(object):
             finally:
                 self._timer_stop()
                 self._log_stop()
+                if any(sys.exc_info()):
+                    self._fallback_run_result = self._current_run_result
                 self._current_run_result = None
 
                 if self.save_and_load and self._current_epoch:
