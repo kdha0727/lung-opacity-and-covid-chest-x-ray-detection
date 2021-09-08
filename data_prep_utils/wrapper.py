@@ -106,10 +106,10 @@ class RSNAPneumoniaDetectionChallenge(DataWrapper):
             class_to_idx=self.class_to_idx,
         )
 
-    def torch_detection_dataset(self, transforms):
-        return dataset.ImageBboxWithPandas(
-            dataframe=self.full_csv[self.full_csv.Target == 1],
-            label_id='patientId',
+    def torch_detection_dataset(self, transforms, **loader_kwargs):
+        df = self.full_csv[self.full_csv.Target == 1]
+        label_id = 'patientId'
+        common_kwargs = dict(
             label_bbox="x y width height".split(),
             label_target='Target',
             root=self.image_path,
@@ -118,6 +118,21 @@ class RSNAPneumoniaDetectionChallenge(DataWrapper):
             loader=dataset.dicom_loader,
             class_to_idx=self.class_to_idx,
         )
+        if not loader_kwargs:
+            return dataset.ImageBboxWithPandas(
+                dataframe=df,
+                label_id=label_id,
+                **common_kwargs
+            )
+        else:
+            return dataset.DataLoaderChain.from_datasets(
+                *dataset.ImageBboxWithPandas.split_with_count(
+                    dataframe=df,
+                    label_id=label_id,
+                    **common_kwargs
+                ),
+                **loader_kwargs
+            )
 
 
 class COVID19RadiologyDataset(DataWrapper):

@@ -72,19 +72,20 @@ class AdvancedFitter(Trainer):
 
         datasets = self.train_iter
 
-        for data in datasets:
+        for datum in datasets:
 
-            whole = len(data)
-            for iteration, (images, targets) in enumerate(data, 1):
+            whole = len(datum)
+            for iteration, data in enumerate(datum, 1):
 
-                if isinstance(targets, dict):
-                    l = self._train_detection(images, targets)
+                if isinstance(data, dict):
+                    l = self._train_detection(data)
                     det_loss += l; det_batch += 1
                     if iteration % log_interval == 0 and verbose:
                         self._log_train_doing(l, iteration, whole)
 
                 else:
-                    l, a = self._train_classification(images, targets)
+
+                    l, a = self._train_classification(*data)
                     total_loss += l; total_accuracy += a; total_batch += 1
                     if iteration % log_interval == 0 and verbose:
                         self._log_train_doing(l, iteration, whole)
@@ -118,15 +119,16 @@ class AdvancedFitter(Trainer):
 
         return l, a
 
-    def _train_detection(self, images, targets):
+    def _train_detection(self, dataset):
 
-        print(targets)
+        images = dataset['image']
+        labels = dataset['labels']
+        boxes = dataset['boxes']
 
         images = self._to_apply_tensor(images).float()
-        boxes = self._to_apply_tensor(targets['boxes']).float()
-        labels = self._to_apply_tensor(targets['labels']).to(torch.int64)
+        boxes = self._to_apply_tensor(boxes).float()
+        labels = self._to_apply_tensor(labels).to(torch.int64)
 
-        images = torch.stack([images])
         targets = [{'boxes': b, 'labels': l} for b, l in zip(boxes, labels)]
 
         loss_dict = self.model(images, targets)
@@ -153,24 +155,25 @@ class AdvancedFitter(Trainer):
         det_loss = 0.
         det_batch = 0
 
-        for data in datasets:
+        for datum in datasets:
 
-            for images, targets in data:
+            for data in datum:
 
-                if isinstance(targets, dict):
-                    l = self._eval_detection(images, targets)
-                    det_loss += l; det_batch += 1
+                if isinstance(data, dict):
+                    with self._force_train_mode():
+                        l = self._eval_detection(data)
+                        det_loss += l; det_batch += 1
 
                 else:
-                    l, a = self._eval_classification(images, targets)
+                    l, a = self._eval_classification(*data)
                     total_loss += l; total_accuracy += a; total_batch += 1
 
-        avg_loss = total_loss / total_batch
-        avg_accuracy = total_accuracy / total_batch
+        avg_loss = total_loss / total_batch if total_batch else -1
+        avg_accuracy = total_accuracy / total_batch if total_batch else -1
 
         self._log_eval(avg_loss, avg_accuracy, test=test)
 
-        det_avg_loss = det_loss / det_batch
+        det_avg_loss = det_loss / det_batch if det_batch else -1
 
         self._log_eval(det_avg_loss, test=test)
 
@@ -187,12 +190,29 @@ class AdvancedFitter(Trainer):
 
         return l, a
 
-    def _eval_detection(self, images, targets):
+    def _eval_detection(self, dataset):
+
+        images = dataset['image']
+        labels = dataset['labels']
+        boxes = dataset['boxes']
 
         images = self._to_apply_tensor(images).float()
-        boxes = [self._to_apply_tensor(target['boxes']).float() for target in targets]
-        labels = [self._to_apply_tensor(target['labels']).float() for target in targets]
+        boxes = self._to_apply_tensor(boxes).float()
+        labels = self._to_apply_tensor(labels).to(torch.int64)
 
-        loss, _, _ = self.criterion(images, boxes, labels)
+        targets = [{'boxes': b, 'labels': l} for b, l in zip(boxes, labels)]
 
+        loss_dict = self.model(images, targets)
+
+        # ('loss_classifier', 'loss_box_reg', 'loss_objectness', 'loss_rpn_box_reg')
+        loss = sum(loss_dict.values())
         return loss.item()
+
+    @contextlib.contextmanager
+    def _force_train_mode(self):
+        prev_mode = self.model.training
+        try:
+            self.model.train()
+            yield
+        finally:
+            self.model.train(mode=prev_mode)

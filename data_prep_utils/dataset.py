@@ -3,8 +3,10 @@ import pandas as pd
 import pydicom
 import os
 import typing
+import random
 
 import torch
+from torch.utils.data import IterableDataset, DataLoader
 from PIL import Image
 from torchvision.datasets import VisionDataset, ImageFolder as _ImageFolder
 
@@ -202,6 +204,26 @@ class ImageBboxWithPandas(VisionDataset):
         self.class_to_idx = class_to_idx
         self.num_classes = len(class_to_idx)
 
+    @classmethod
+    def split_with_count(
+            cls,
+            dataframe: pd.DataFrame,
+            label_id: str,
+            *args, **kwargs
+    ):
+        dataframe = pd.merge(
+            # original dataframe
+            dataframe,
+            # count dataframe
+            dataframe.groupby(label_id).size().reset_index(name='count'),
+            # join kwargs
+            left_on=label_id, right_on=label_id, how='inner'
+        )
+        return [
+            cls(dataframe[dataframe['count'] == number], label_id, *args, **kwargs)
+            for number in dataframe['count'].drop_duplicates().values
+        ]
+
     def __len__(self):
         return len(self.ids)
 
@@ -228,6 +250,7 @@ class ImageBboxWithPandas(VisionDataset):
                 sample['bboxes'] = np.array(sample['bboxes'])
                 sample['bboxes'][:, [0, 1, 2, 3]] = sample['bboxes'][:, [1, 0, 3, 2]]  # yxyx: be warning
 
+        image = sample['image']
         labels = torch.tensor(sample['labels'], dtype=torch.int)
 
         if len(sample['bboxes']) == 0:
@@ -235,9 +258,9 @@ class ImageBboxWithPandas(VisionDataset):
         else:
             bboxes = torch.tensor(sample['bboxes'])
 
-        sample = {'labels': labels, 'boxes': bboxes}
-        print(bboxes.shape)
-        return image, sample
+        sample = {'image': image, 'labels': labels, 'boxes': bboxes}
+
+        return sample
 
 
 class ImageFolder(_ImageFolder):
@@ -295,4 +318,52 @@ class ImageFolder(_ImageFolder):
         return classes, class_to_idx
 
 
-__all__ = ['pil_loader', 'dicom_loader', 'ImageWithPandas', 'ImageFolder']
+class DataLoaderChain(IterableDataset):
+
+    __loaders: tuple
+    __length: int
+
+    def __init__(self, *loaders):
+        self.loaders = loaders
+
+    @classmethod
+    def from_datasets(cls, *datasets, **loader_kwargs):
+        return cls(*(DataLoader(dataset, **loader_kwargs) for dataset in datasets))
+
+    @property
+    def loaders(self):
+        return self.__loaders
+
+    @loaders.setter
+    def loaders(self, value):
+        if not isinstance(value, tuple):
+            raise TypeError(str(type(value).__name__))
+        self.__loaders = value
+        self.__length = sum((map(len, value)))
+
+    @property
+    def length(self):
+        return self.__length
+
+    def __iter__(self):
+        available = [iter(loader) for loader in self.loaders]
+        len_available = len(available)
+        while True:
+            idx = random.randrange(len_available)
+            try:
+                yield next(available[idx])
+            except StopIteration:
+                available.pop(idx)
+                len_available -= 1
+                if len_available == 0:
+                    return
+
+    def __len__(self):
+        return self.length
+
+
+__all__ = [
+    'pil_loader', 'dicom_loader',
+    'ImageWithPandas', 'ImageFolder', 'ImageBboxWithPandas',
+    'DataLoaderChain'
+]

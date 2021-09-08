@@ -1,10 +1,13 @@
 torch
+torchvision
 pydicom
 albumentations==0.4.6
 efficientnet_pytorch
 effdet
 timm
 
+pandas
+numpy
 seaborn
 matplotlib
 torchsummary
