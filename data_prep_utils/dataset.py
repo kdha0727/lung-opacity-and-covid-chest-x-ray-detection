@@ -13,23 +13,31 @@ from torchvision.datasets import VisionDataset, ImageFolder as _ImageFolder
 
 # loader
 
-def pil_loader(path: str) -> Image.Image:
-    # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
-    with open(path, 'rb') as f:
-        img = Image.open(f)
-        # issue: to use one-channel image, we use "L" conversion.
-        # L = R * 299/1000 + G * 587/1000 + B * 114/1000
-        return img.convert('L')
+def pil_loader(path: str) -> np.ndarray:
+    try:
+        # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
+        with open(path, 'rb') as f:
+            img = Image.open(f)
+            # issue: to use one-channel image, we use "L" conversion.
+            # L = R * 299/1000 + G * 587/1000 + B * 114/1000
+            arr = np.array(img.convert('L'))
+            if arr.ndim == 2:
+                arr = np.stack([arr]).transpose((1, 2, 0))
+            return arr
+    except Exception as exc:
+        raise OSError("Cannot load image file: {}".format(path)) from exc
 
 
-def dicom_loader(path: str) -> Image.Image:
+def dicom_loader(path: str) -> np.ndarray:
     try:
         with open(path, 'rb') as f:
             dcm = pydicom.dcmread(f)
             arr = dcm.pixel_array
-            return Image.fromarray(arr)
-    except Exception:
-        raise Exception(path)
+            if arr.ndim == 2:
+                arr = np.stack([arr]).transpose((1, 2, 0))
+            return arr
+    except Exception as exc:
+        raise OSError("Cannot load dicom file: {}".format(path)) from exc
 
 
 def default_loader(path: str):
