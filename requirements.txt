@@ -1,0 +1,10 @@
+torch
+pydicom
+albumentations==0.4.6
+efficientnet_pytorch
+effdet
+timm
+
+seaborn
+matplotlib
+torchsummary
