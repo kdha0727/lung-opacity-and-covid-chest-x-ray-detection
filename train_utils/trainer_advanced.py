@@ -122,8 +122,8 @@ class AdvancedFitter(Trainer):
 
         print(targets)
 
-        images = self._to_apply_tensor(images).double()
-        boxes = self._to_apply_tensor(targets['boxes']).double()
+        images = self._to_apply_tensor(images).float()
+        boxes = self._to_apply_tensor(targets['boxes']).float()
         labels = self._to_apply_tensor(targets['labels']).to(torch.int64)
 
         images = torch.stack([images])
