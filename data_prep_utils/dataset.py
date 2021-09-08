@@ -196,34 +196,47 @@ class ImageBboxWithPandas(VisionDataset):
             class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
         samples[label_target] = samples[label_target].map(lambda x: class_to_idx[x])
 
-        self.ids = samples[label_id].drop_duplicates()
+        self.ids = list(samples[label_id].drop_duplicates())
 
         self.samples = samples
         self.class_to_idx = class_to_idx
         self.num_classes = len(class_to_idx)
 
     def __len__(self):
-        return self.ids.shape[0]
+        return len(self.ids)
 
     def __getitem__(self, index: int) -> ...:
         image_id = self.ids[index]
         rows = self.samples[self.samples[self.label_id] == image_id]
 
-        image = self.loader(image_id)
+        image = np.array(self.loader(image_id))
 
-        labels = torch.tensor(list(rows[self.label_target]), dtype=torch.int)
+        labels = rows[self.label_target]
 
         boxes = rows[self.label_bbox].values  # x y w h
         boxes[:, 2] = boxes[:, 0] + boxes[:, 2]
         boxes[:, 3] = boxes[:, 1] + boxes[:, 3]
+
+        if (boxes != boxes).any():
+            boxes = []
 
         sample = {'image': image, 'bboxes': boxes, 'labels': labels}
 
         if self.transforms:
             sample = self.transforms(**sample)
             if len(sample['bboxes']) > 0:
-                sample['boxes'][:, [0, 1, 2, 3]] = sample['boxes'][:, [1, 0, 3, 2]]  # yxyx: be warning
+                sample['bboxes'] = np.array(sample['bboxes'])
+                sample['bboxes'][:, [0, 1, 2, 3]] = sample['bboxes'][:, [1, 0, 3, 2]]  # yxyx: be warning
 
+        labels = torch.tensor(sample['labels'], dtype=torch.int)
+
+        if len(sample['bboxes']) == 0:
+            bboxes = torch.stack([torch.tensor(np.zeros((0, 4)))] * len(sample['labels']))
+        else:
+            bboxes = torch.tensor(sample['bboxes'])
+
+        sample = {'labels': labels, 'boxes': bboxes}
+        print(bboxes.shape)
         return image, sample
 
 

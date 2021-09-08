@@ -108,7 +108,7 @@ class RSNAPneumoniaDetectionChallenge(DataWrapper):
 
     def torch_detection_dataset(self, transforms):
         return dataset.ImageBboxWithPandas(
-            dataframe=self.full_csv,
+            dataframe=self.full_csv[self.full_csv.Target == 1],
             label_id='patientId',
             label_bbox="x y width height".split(),
             label_target='Target',
