@@ -405,11 +405,13 @@ class Trainer(object):
 
         return tuple((*train_args, test_loss, *test_args))
 
-    def run(self) -> typing.List[typing.Sequence[float]]:
+    def run(self, reset_epoch=False) -> typing.List[typing.Sequence[float]]:
 
         with self._with_context():
 
             self._current_run_result = result = []
+            if reset_epoch:
+                self._current_epoch = 0
             self._log_start()
             self._timer_start()
 
