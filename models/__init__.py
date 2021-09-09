@@ -20,3 +20,10 @@ def get_full_network(num_classes=4, trainable_backbone_layers=5, pretrained_back
     )
     model = FasterRCNN(effnet_backbone, num_classes, rpn_anchor_generator=anchor_generator, **kwargs)
     return model
+
+
+def freeze_backbone_gradient(backbone):
+    for name, param in backbone.named_parameters():
+        # if name in ['linear.0.weight', 'linear.2.weight']:
+        if name:
+            param.requires_grad = False

@@ -17,7 +17,7 @@ class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
         callback_get_label: a callback-like function which takes two arguments - dataset and index
     """
 
-    def __init__(self, dataset, indices: list = None, num_samples: int = None, callback_get_label: Callable = None):
+    def __init__(self, dataset, indices: list = None, num_samples: int = None, callback_get_label: Callable = None):  # noqa
         # if indices is not provided, all elements in the dataset will be considered
         self.indices = list(range(len(dataset))) if indices is None else indices
 
@@ -49,9 +49,9 @@ class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
         elif isinstance(dataset, torchvision.datasets.DatasetFolder):
             return dataset.samples[:][1]
         elif isinstance(dataset, torch.utils.data.Subset):
-            return dataset.dataset.imgs[:][1]
+            return dataset.dataset.imgs[:][1]# noqa
         elif isinstance(dataset, torch.utils.data.Dataset):
-            return dataset.get_labels()
+            return dataset.get_labels()# noqa
         else:
             raise NotImplementedError
 

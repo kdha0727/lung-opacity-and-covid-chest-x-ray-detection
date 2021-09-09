@@ -410,7 +410,6 @@ class Trainer(object):
         with self._with_context():
 
             self._current_run_result = result = []
-            self._current_epoch = 0
             self._log_start()
             self._timer_start()
 

@@ -3,7 +3,7 @@ from efficientnet_pytorch.utils import GlobalParams
 # from efficientnet_pytorch.utils import get_model_params
 
 
-def get_efficientnet_backbone(depth=4, in_channels=3, image_size=None, pretrained=True, **override_params):
+def get_efficientnet_backbone(depth=4, in_channels=1, image_size=256, pretrained=True, **override_params):
 
     assert 0 <= depth <= 8
     if image_size is not None:

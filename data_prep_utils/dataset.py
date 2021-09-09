@@ -57,8 +57,6 @@ class ImageWithPandas(VisionDataset):
             and extra outputs.
         label_id (string): Data frame`s image path label string.
         label_target (string): Data frame`s target class label string.
-        label_extras (tuple[string] or string, optional): Data frame`s label that will
-            be used for extra outputs.
         root (string, optional): Root directory path. Use unless data frame`s column
             contains file folders.
         extension (string, optional): An extension that will be concatenated after
