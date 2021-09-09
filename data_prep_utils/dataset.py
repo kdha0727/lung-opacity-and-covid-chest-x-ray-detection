@@ -256,7 +256,7 @@ class ImageBboxWithPandas(VisionDataset):
             sample = self.transforms(**sample)
             if len(sample['bboxes']) > 0:
                 sample['bboxes'] = np.array(sample['bboxes'])
-                sample['bboxes'][:, [0, 1, 2, 3]] = sample['bboxes'][:, [1, 0, 3, 2]]  # yxyx: be warning
+                # sample['bboxes'][:, [0, 1, 2, 3]] = sample['bboxes'][:, [1, 0, 3, 2]]  # yxyx: be warning
 
         image = sample['image']
         labels = torch.tensor(sample['labels'], dtype=torch.int)
