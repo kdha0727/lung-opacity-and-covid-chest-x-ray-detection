@@ -178,7 +178,7 @@ class AdvancedFitter(Trainer):
 
         self._log_eval(det_avg_loss, test=test)
 
-        return avg_loss, avg_accuracy
+        return max(det_avg_loss, 0) + max(avg_loss, 0),  det_avg_loss, avg_loss, avg_accuracy
 
     def _eval_classification(self, dataset):
 
