@@ -247,7 +247,7 @@ class ImageBboxWithPandas(VisionDataset):
         boxes[:, 2] = boxes[:, 0] + boxes[:, 2]
         boxes[:, 3] = boxes[:, 1] + boxes[:, 3]
 
-        if (boxes != boxes).any():
+        if (boxes != boxes).any():  # type: ignore
             boxes = []
 
         sample = {'image': image, 'bboxes': boxes, 'labels': labels}
@@ -272,23 +272,9 @@ class ImageBboxWithPandas(VisionDataset):
 
 
 class ImageFolder(_ImageFolder):
-    """A generic data loader where the images are arranged in root folder.
+    __doc__ = _ImageFolder.__doc__
 
-    Args:
-        root (string): Root directory path.
-        transform (callable, optional): A function/transform that  takes in an PIL image
-            and returns a transformed version. E.g, ``transforms.RandomCrop``
-        target_transform (callable, optional): A function/transform that takes in the
-            target and transforms it.
-        loader (callable, optional): A function to load an image given its path.
-        is_valid_file (callable, optional): A function that takes path of an Image file
-            and check if the file is a valid file (used to check of corrupt files)
-
-     Attributes:
-        classes (list): List of the class names sorted alphabetically.
-        class_to_idx (dict): Dict with items (class_name, class_index).
-        imgs (list): List of (image path, class_index) tuples
-    """
+    classes: list = None
 
     def __init__(
             self,
@@ -315,7 +301,7 @@ class ImageFolder(_ImageFolder):
         Ensures:
             No class is a subdirectory of another.
         """
-        classes = [d.name for d in os.scandir(directory) if d.is_dir()]
+        classes = [d.name for d in os.scandir(directory) if d.is_dir()]  # type: ignore
         classes.sort()
         try:
             class_to_idx = self.class_to_idx
@@ -368,6 +354,9 @@ class DataLoaderChain(IterableDataset):
 
     def __len__(self):
         return self.length
+
+    def __getitem__(self, item):
+        raise NotImplementedError
 
 
 __all__ = [

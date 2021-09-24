@@ -1,29 +1,28 @@
+from .classifier import *
+from .detector import *
+from .efficientnet import *
+from .metrics import *
+
+from . import classifier
+from . import detector
 from . import efficientnet
-
-# # get number of input features for the classifier
-# in_features = model.roi_heads.box_predictor.cls_score.in_features
-#
-# # replace the pre-trained head with a new one
-# model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
+from . import metrics
 
 
-def get_full_network(num_classes=4, trainable_backbone_layers=5, pretrained_backbone=True, **kwargs):
-
-    assert 0 <= trainable_backbone_layers <= 5
-
-    from torchvision.models.detection import FasterRCNN
-    from torchvision.models.detection.anchor_utils import AnchorGenerator
-    anchor_generator = AnchorGenerator(sizes=((32, 64, 128, 256),),
-                                       aspect_ratios=((0.5, 1.0, 2.0),))
-    effnet_backbone = efficientnet.get_efficientnet_backbone(
-        depth=4, in_channels=1, image_size=None, pretrained=pretrained_backbone,
-    )
-    model = FasterRCNN(effnet_backbone, num_classes, rpn_anchor_generator=anchor_generator, **kwargs)
-    return model
+__all__ = ['freeze_backbone_gradient']
+for _ in (classifier, detector, efficientnet, metrics):
+    __all__ += _.__all__
 
 
-def freeze_backbone_gradient(backbone):
+def freeze_backbone_gradient(backbone, startswith=None):
+    if startswith:
+        def check(parameter_name):
+            return any(map(lambda s: parameter_name.startswith(s), startswith))
+        if isinstance(startswith, str):
+            startswith = (startswith, )
+    else:
+        def check(parameter_name):
+            return bool(parameter_name)
     for name, param in backbone.named_parameters():
-        # if name in ['linear.0.weight', 'linear.2.weight']:
-        if name:
-            param.requires_grad = False
+        if check(name):
+            param.requires_grad_(False)

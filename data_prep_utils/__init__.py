@@ -16,6 +16,8 @@
 #
 
 from . import dataset
+from . import samplers
+from . import transforms
 
 
 #
@@ -43,13 +45,14 @@ for w in (
     def __hook(__obj=w):
         return __obj.__data_root__  # warning: this may cause recursion while initialization
     _register_init_hook(__hook)
-del wrapper, w, _register_init_hook, __hook  # remove redundant classes from namespace
+
+del _internal, wrapper, w, _register_init_hook, __hook  # remove redundant classes from namespace
 
 
 __all__ = [
 
     # modules,
-    'dataset',
+    'dataset', 'samplers', 'transforms',
 
     # root directory getters and setters,
     'get_root', 'set_root', 'init',

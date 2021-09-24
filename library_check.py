@@ -1,12 +1,22 @@
 
 requirements = {
+
     'torch': 'torch',
     'torchvision': 'torchvision',
-    'pydicom': 'pydicom',
-    'pandas': 'pandas',
+    'albumentations': 'albumentations',
+    'efficientnet_pytorch': 'efficientnet_pytorch',
+
     'numpy': 'numpy',
+    'pandas': 'pandas',
+    'sklearn': 'scikit-learn',
+
+    'PIL': 'pillow',
+    'pydicom': 'pydicom',
+    'torchinfo': 'torchinfo',
+
     'matplotlib': 'matplotlib',
-    'seaborn': 'seaborn'
+    'seaborn': 'seaborn',
+
 }
 
 
@@ -29,7 +39,7 @@ def check(raise_exception=False):
                 main(['pip', 'install', value])
             check(raise_exception=True)
         except Exception as e:
-            raise e from exc
+            raise exc from e
     print("All required libraries are installed.")
 
 

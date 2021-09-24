@@ -4,7 +4,8 @@ import random
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from torchvision import transforms
+from torchvision.transforms import ToTensor
+from torch.utils.data import DataLoader
 
 from . import dataset
 from ._internal import get_root
@@ -91,11 +92,11 @@ class RSNAPneumoniaDetectionChallenge(DataWrapper):
         return self.get_patient_dicom(patient_id).pixel_array
 
     def show_patient_image(self, patient_id):
-        plt.imshow(self.get_patient_image(patient_id), cmap=plt.cm.gray)
+        plt.imshow(self.get_patient_image(patient_id), cmap=plt.cm.gray)  # type: ignore
         plt.show()
 
-    def torch_classification_dataset(self, transform=transforms.ToTensor()):
-        return dataset.ImageWithPandas(
+    def torch_classification_dataset(self, transform=ToTensor(), **loader_kwargs):
+        result = dataset.ImageWithPandas(
             dataframe=self.classification_csv,
             label_id='patientId',
             label_target='Target',
@@ -105,8 +106,11 @@ class RSNAPneumoniaDetectionChallenge(DataWrapper):
             loader=dataset.dicom_loader,
             class_to_idx=self.class_to_idx,
         )
+        if loader_kwargs:
+            result = DataLoader(result, **loader_kwargs)
+        return result
 
-    def torch_detection_dataset(self, transforms, **loader_kwargs):
+    def torch_detection_dataset(self, transform=None, **loader_kwargs):
         df = self.full_csv[self.full_csv.Target == 1]
         label_id = 'patientId'
         common_kwargs = dict(
@@ -114,7 +118,7 @@ class RSNAPneumoniaDetectionChallenge(DataWrapper):
             label_target='Target',
             root=self.image_path,
             extension='.dcm',
-            transforms=transforms,
+            transforms=transform,
             loader=dataset.dicom_loader,
             class_to_idx=self.class_to_idx,
         )
@@ -159,13 +163,16 @@ class COVID19RadiologyDataset(DataWrapper):
     def image_path(self):
         return self.__data_root__ / "COVID-19_Radiography_Dataset"
 
-    def torch_classification_dataset(self, transform=transforms.ToTensor()):
-        return dataset.ImageFolder(
+    def torch_classification_dataset(self, transform=ToTensor(), **loader_kwargs):
+        result = dataset.ImageFolder(
             root=self.image_path,
             class_to_idx=self.class_to_idx,
             transform=transform,
             loader=dataset.pil_loader,
         )
+        if loader_kwargs:
+            result = DataLoader(result, **loader_kwargs)
+        return result
 
 
 __all__ = ['RSNAPneumoniaDetectionChallenge', 'COVID19RadiologyDataset']

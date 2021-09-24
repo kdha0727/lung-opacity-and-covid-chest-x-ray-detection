@@ -32,3 +32,6 @@ def get_efficientnet_backbone(depth=4, in_channels=1, image_size=256, pretrained
         net._change_in_channels(in_channels)
     net.out_channels = net._bn1.num_features
     return net
+
+
+__all__ = ['get_efficientnet_backbone']

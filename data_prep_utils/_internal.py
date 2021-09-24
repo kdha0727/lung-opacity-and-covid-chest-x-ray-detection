@@ -1,6 +1,8 @@
-import typing
-from pathlib import Path
 import os
+import sys
+import types
+from pathlib import Path
+import typing
 
 
 __root: typing.Optional[Path] = None
@@ -45,3 +47,21 @@ def set_root(path: typing.Union[str, os.PathLike] = 'data') -> None:
 def get_root() -> Path:
     lazy_init()
     return __root
+
+
+# Encapsulate internal variables
+_mod = types.ModuleType(__name__)
+_global_dict = globals()
+for attr in (
+    'get_root', 'set_root', 'lazy_init', '_register_init_hook',
+):
+    setattr(_mod, attr, _global_dict[attr])
+for attr in (
+    '__doc__', '__file__', '__loader__', '__package__', '__path__', '__spec__',
+):
+    try:
+        setattr(_mod, attr, _global_dict[attr])
+    except KeyError:
+        pass
+sys.modules[__name__] = _mod
+del _mod, _global_dict
